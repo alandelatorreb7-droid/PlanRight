@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PlanRight — Project Timeline Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --accent:        #0f766e;   /* deep teal */
+    --accent-soft:   #14b8a6;
+    --accent-tint:   #e6f4f1;
+    --ink:           #1e293b;
+    --ink-soft:      #475569;
+    --muted:         #94a3b8;
+    --line:          #e9edf3;
+    --bg:            #f5f6fa;
+    --card:          #ffffff;
+    --shadow:        0 1px 2px rgba(16,24,40,.04), 0 6px 18px rgba(16,24,40,.05);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    font-size: 14px;
+  }
+
+  /* ============ LAYOUT ============ */
+  .app { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 220px;
+    flex: none;
+    background: #ffffff;
+    border-right: 1px solid var(--line);
+    position: fixed;
+    top: 0; bottom: 0; left: 0;
+    padding: 22px 16px;
+    display: flex;
+    flex-direction: column;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 11px;
+    padding: 4px 6px 22px;
+  }
+  .brand .mark {
+    width: 36px; height: 36px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+    display: grid; place-items: center;
+    color: #fff; flex: none;
+  }
+  .brand .name { font-weight: 700; font-size: 15.5px; letter-spacing: -.3px; }
+  .brand .tag  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  .nav-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .9px;
+    color: var(--muted); font-weight: 600;
+    padding: 14px 8px 6px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 9px;
+    color: var(--ink-soft); font-weight: 500; font-size: 13.5px;
+    cursor: pointer; user-select: none;
+    border: none; background: none; width: 100%; text-align: left;
+    font-family: inherit;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex: none; opacity: .85; }
+  .nav-item:hover { background: #f3f5f9; }
+  .nav-item.active {
+    background: var(--accent-tint);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .nav-item.active svg { opacity: 1; }
+
+  .sidebar .foot {
+    margin-top: auto;
+    font-size: 11px; color: var(--muted);
+    padding: 12px 8px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .main {
+    flex: 1;
+    margin-left: 220px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ============ TOP BAR ============ */
+  .topbar {
+    height: 64px;
+    background: #ffffff;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar .title-wrap .crumb { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+  .topbar .title-wrap h1 { font-size: 17px; margin: 1px 0 0; font-weight: 700; letter-spacing: -.3px; }
+
+  .btn {
+    font-family: inherit; font-size: 13.5px; font-weight: 600;
+    border-radius: 9px; cursor: pointer; border: 1px solid transparent;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px;
+  }
+  .btn svg { width: 16px; height: 16px; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #0c5f59; }
+  .btn-primary:disabled { opacity: .6; cursor: default; }
+  .btn-ghost { background: #fff; color: var(--ink-soft); border-color: var(--line); }
+  .btn-ghost:hover { background: #f3f5f9; }
+
+  /* ============ CONTENT ============ */
+  .content { padding: 28px; max-width: 1200px; }
+  .view { display: none; }
+  .view.active { display: block; animation: fade .25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .section-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .9px;
+    color: var(--muted); font-weight: 600; margin: 0 0 12px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 22px;
+  }
+  .card + .card { margin-top: 20px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .card-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
+  .card-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+
+  /* ---- stat tiles ---- */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+  @media (max-width: 920px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .tile {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: var(--shadow); padding: 16px 18px;
+  }
+  .tile .ico {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: grid; place-items: center; margin-bottom: 12px;
+    background: var(--accent-tint); color: var(--accent);
+  }
+  .tile .ico svg { width: 18px; height: 18px; }
+  .tile .k { font-size: 11.5px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 600; }
+  .tile .v { font-size: 22px; font-weight: 700; margin-top: 2px; letter-spacing: -.5px; }
+  .tile .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .tile.accent { background: linear-gradient(135deg, var(--accent), #0d655e); border-color: transparent; color: #fff; }
+  .tile.accent .k, .tile.accent .sub { color: rgba(255,255,255,.78); }
+  .tile.accent .ico { background: rgba(255,255,255,.16); color: #fff; }
+
+  /* ---- finish badge ---- */
+  .finish-badge {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: var(--accent-tint);
+    border: 1px solid #cfeae5;
+    color: var(--accent);
+    padding: 11px 18px; border-radius: 12px;
+    margin-bottom: 18px;
+  }
+  .finish-badge .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent-soft); box-shadow: 0 0 0 4px rgba(20,184,166,.18); }
+  .finish-badge .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .7px; font-weight: 600; opacity: .85; }
+  .finish-badge .big { font-size: 17px; font-weight: 700; color: var(--ink); margin-left: 2px; }
+
+  /* ============ GANTT ============ */
+  .gantt-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .gantt-inner { min-width: 640px; }
+  .NAME_W { } /* name column width controlled inline below via vars */
+
+  .axis {
+    display: flex;
+    margin-left: 230px;
+    height: 26px;
+    border-bottom: 1px solid var(--line);
+  }
+  .axis .tick {
+    flex: 1; font-size: 11px; color: var(--muted); font-weight: 500;
+    border-left: 1px solid var(--line);
+    padding-left: 6px; line-height: 26px;
+    white-space: nowrap;
+  }
+  .axis .tick:first-child { border-left: none; }
+
+  .grow {
+    display: flex; align-items: center;
+    min-height: 48px;
+  }
+  .grow:nth-child(even) { background: #fafbfd; }
+  .grow .name {
+    width: 230px; flex: none;
+    font-size: 12.5px; font-weight: 600; color: var(--ink);
+    padding: 7px 16px 7px 4px;
+    line-height: 1.3;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .track {
+    flex: 1; position: relative; align-self: stretch;
+    background-image: repeating-linear-gradient(to right, transparent, transparent calc(12.5% - 1px), var(--line) calc(12.5% - 1px), var(--line) 12.5%);
+  }
+  .bar {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    height: 26px; min-width: 14px; border-radius: 13px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.04), 0 1px 2px rgba(16,24,40,.08);
+  }
+  .dur {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    margin-left: 7px;
+    font-size: 11px; font-weight: 600; color: var(--ink-soft);
+    white-space: nowrap;
+  }
+
+  /* ---- phase editor form ---- */
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  input[type="text"], input[type="date"], input[type="number"], select {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--line); border-radius: 9px;
+    font-family: inherit; font-size: 13.5px; color: var(--ink); background: #fff;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent-soft); box-shadow: 0 0 0 3px rgba(20,184,166,.14); }
+
+  .row-head, .phase-row {
+    display: grid; grid-template-columns: 16px 1fr 80px 28px; gap: 10px; align-items: center;
+  }
+  .row-head { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 600; padding: 0 0 8px; }
+  .row-head span:nth-child(3) { text-align: center; }
+  .phase-row { padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .phase-row:last-of-type { border-bottom: none; }
+  .swatch { width: 14px; height: 14px; border-radius: 5px; flex: none; }
+  .phase-row input[type="text"] { padding: 8px 10px; font-size: 13px; }
+  .phase-row input[type="number"] { padding: 8px 6px; font-size: 13px; text-align: center; }
+  .del { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; border-radius: 6px; }
+  .del:hover { color: #e11d48; }
+  .add-phase {
+    margin-top: 14px; width: 100%; padding: 10px;
+    border: 1px dashed #cfd8e3; background: #fafbfd; color: var(--accent);
+    border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .add-phase:hover { border-color: var(--accent-soft); background: var(--accent-tint); }
+
+  .schedule-grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 1000px) { .schedule-grid { grid-template-columns: 1fr; } }
+
+  /* ---- reports table ---- */
+  table.report { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.report th {
+    text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px;
+    color: var(--muted); font-weight: 600; padding: 0 12px 10px; border-bottom: 1px solid var(--line);
+  }
+  table.report th.num, table.report td.num { text-align: right; }
+  table.report td { padding: 12px; border-bottom: 1px solid var(--line); }
+  table.report tr:last-child td { border-bottom: none; }
+  table.report .ph { display: flex; align-items: center; gap: 9px; font-weight: 600; }
+  table.report tfoot td, table.report .total td { font-weight: 700; }
+  .total td { border-top: 2px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
+      </div>
+      <div>
+        <div class="name">PlanRight</div>
+        <div class="tag">Project Planner</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Menu</div>
+    <button class="nav-item active" data-view="overview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      Overview
+    </button>
+    <button class="nav-item" data-view="schedule">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      Schedule
+    </button>
+    <button class="nav-item" data-view="reports">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg>
+      Reports
+    </button>
+
+    <div class="foot">Sequential phases &middot; each starts the day after the previous ends.</div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <div class="title-wrap">
+        <div class="crumb" id="crumb">Overview</div>
+        <h1 id="topTitle">Residential Build</h1>
+      </div>
+      <button class="btn btn-primary" id="generateBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5v14"/></svg>
+        Generate Schedule
+      </button>
+    </header>
+
+    <div class="content">
+
+      <!-- ===== OVERVIEW VIEW ===== -->
+      <section class="view active" id="view-overview">
+        <div class="stats">
+          <div class="tile">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+            <div class="k">Start Date</div>
+            <div class="v" id="ovStart">—</div>
+            <div class="sub" id="ovStartSub"></div>
+          </div>
+          <div class="tile">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+            <div class="k">Duration</div>
+            <div class="v" id="ovDur">—</div>
+            <div class="sub" id="ovDurSub"></div>
+          </div>
+          <div class="tile">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/></svg></div>
+            <div class="k">Phases</div>
+            <div class="v" id="ovPhases">—</div>
+            <div class="sub">work stages</div>
+          </div>
+          <div class="tile accent">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+            <div class="k">Projected Finish</div>
+            <div class="v" id="ovFinish">—</div>
+            <div class="sub" id="ovFinishSub"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>Timeline Overview</h3>
+              <p id="ovProjName">Residential Build</p>
+            </div>
+            <button class="btn btn-ghost" data-view="schedule">Edit phases</button>
+          </div>
+          <div class="finish-badge">
+            <span class="dot"></span>
+            <span class="lbl">Projected Finish</span>
+            <span class="big" id="ovBadge">—</span>
+          </div>
+          <div class="gantt-scroll">
+            <div class="gantt-inner">
+              <div class="axis" id="ovAxis"></div>
+              <div id="ovBars"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SCHEDULE VIEW ===== -->
+      <section class="view" id="view-schedule">
+        <div class="schedule-grid">
+          <!-- form -->
+          <div class="card">
+            <div class="card-head"><div><h3>Project Setup</h3><p>Edit phases &amp; durations</p></div></div>
+            <div class="field">
+              <label>Project name</label>
+              <input type="text" id="projName" value="Residential Build" />
+            </div>
+            <div class="field">
+              <label>Start date</label>
+              <input type="date" id="startDate" />
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>Project type</label>
+                <select id="projType">
+                  <option>New Construction</option>
+                  <option>Renovation</option>
+                  <option>Addition</option>
+                  <option>Remodel</option>
+                  <option>Tenant Improvement</option>
+                  <option>Commercial Build</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Crew size</label>
+                <input type="number" id="crewSize" min="1" value="6" />
+              </div>
+            </div>
+            <div class="row-head"><span></span><span>Phase</span><span>Days</span><span></span></div>
+            <div id="phaseList"></div>
+            <button class="add-phase" id="addPhase">+ Add phase</button>
+          </div>
+
+          <!-- gantt -->
+          <div class="card">
+            <div class="card-head">
+              <div><h3 id="schTitle">Schedule</h3><p>Sequential build timeline</p></div>
+            </div>
+            <div class="finish-badge">
+              <span class="dot"></span>
+              <span class="lbl">Projected Finish</span>
+              <span class="big" id="schBadge">—</span>
+            </div>
+            <div class="gantt-scroll">
+              <div class="gantt-inner">
+                <div class="axis" id="schAxis"></div>
+                <div id="schBars"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== REPORTS VIEW ===== -->
+      <section class="view" id="view-reports">
+        <div class="card" id="reportArea">
+          <div class="card-head">
+            <div><h3 id="repTitle">Schedule Report</h3><p id="repSub">Phase-by-phase breakdown</p></div>
+            <button class="btn btn-primary" id="downloadPdf">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+              Download PDF
+            </button>
+          </div>
+          <div class="finish-badge">
+            <span class="dot"></span>
+            <span class="lbl">Projected Finish</span>
+            <span class="big" id="repBadge">—</span>
+          </div>
+          <table class="report">
+            <thead>
+              <tr><th>#</th><th>Phase</th><th>Start</th><th>End</th><th class="num">Days</th></tr>
+            </thead>
+            <tbody id="repBody"></tbody>
+            <tbody id="repFoot"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- PDF libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var DEFAULT_PHASES = [
+    { name: "Permits & approvals", days: 14 },
+    { name: "Site prep & demolition", days: 7 },
+    { name: "Foundation", days: 14 },
+    { name: "Framing", days: 21 },
+    { name: "Roofing & exterior", days: 14 },
+    { name: "Stairs (if needed)", days: 10 },
+    { name: "MEP rough-in (mech/elec/plumb)", days: 12 },
+    { name: "Insulation & drywall", days: 14 },
+    { name: "Finishes — floors, paint, doors, windows", days: 18 },
+    { name: "Cleanup & final inspection", days: 3 }
+  ];
+
+  // pastel bar palette — soft but readable with dark text
+  var PALETTE = [
+    "#b8e6d4", // mint
+    "#ffd8be", // peach
+    "#ddd6fe", // lavender
+    "#bae6fd", // sky blue
+    "#fecaca", // coral
+    "#fde9b8", // butter
+    "#fbcfe8", // rose
+    "#d9f0c0", // sage
+    "#c7d2fe", // periwinkle
+    "#bbf7d0", // green
+    "#fed7aa", // amber
+    "#a5f3fc"  // cyan
+  ];
+
+  var phases = DEFAULT_PHASES.map(function (p) { return { name: p.name, days: p.days }; });
+  var $ = function (id) { return document.getElementById(id); };
+
+  function addDays(d, n) { var x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
+  function fmtLong(d)  { return d.toLocaleDateString(undefined, { weekday:"short", year:"numeric", month:"short", day:"numeric" }); }
+  function fmtMed(d)   { return d.toLocaleDateString(undefined, { year:"numeric", month:"short", day:"numeric" }); }
+  function fmtShort(d) { return d.toLocaleDateString(undefined, { month:"short", day:"numeric" }); }
+  function parseStart() {
+    var v = $("startDate").value;
+    if (!v) return new Date();
+    var p = v.split("-");
+    return new Date(+p[0], +p[1]-1, +p[2]);
+  }
+  function colorFor(i) { return PALETTE[i % PALETTE.length]; }
+
+  function computeSchedule() {
+    var start = parseStart();
+    var cursor = new Date(start.getTime());
+    var rows = [];
+    phases.forEach(function (p, i) {
+      var days = Math.max(1, parseInt(p.days, 10) || 1);
+      var s = new Date(cursor.getTime());
+      var e = addDays(s, days - 1);
+      rows.push({ name: p.name || ("Phase " + (i+1)), days: days, start: s, end: e, color: colorFor(i) });
+      cursor = addDays(e, 1);
+    });
+    var totalDays = rows.reduce(function (a, r) { return a + r.days; }, 0);
+    var finish = rows.length ? rows[rows.length-1].end : start;
+    return { start: start, finish: finish, totalDays: totalDays, rows: rows };
+  }
+
+  // ---- phase editor ----
+  function renderPhaseInputs() {
+    var list = $("phaseList");
+    list.innerHTML = "";
+    phases.forEach(function (p, i) {
+      var row = document.createElement("div");
+      row.className = "phase-row";
+
+      var sw = document.createElement("div");
+      sw.className = "swatch"; sw.style.background = colorFor(i);
+
+      var name = document.createElement("input");
+      name.type = "text"; name.value = p.name;
+      name.addEventListener("input", function () { phases[i].name = name.value; renderAll(); });
+
+      var days = document.createElement("input");
+      days.type = "number"; days.min = "1"; days.value = p.days;
+      days.addEventListener("input", function () { phases[i].days = days.value; renderAll(); });
+
+      var del = document.createElement("button");
+      del.className = "del"; del.innerHTML = "&times;"; del.title = "Remove phase";
+      del.addEventListener("click", function () { phases.splice(i,1); renderPhaseInputs(); renderAll(); });
+
+      row.appendChild(sw); row.appendChild(name); row.appendChild(days); row.appendChild(del);
+      list.appendChild(row);
+    });
+  }
+
+  // ---- gantt renderer (reusable for overview + schedule) ----
+  function renderGantt(sch, axisEl, barsEl) {
+    axisEl.innerHTML = ""; barsEl.innerHTML = "";
+    if (!sch.rows.length) return;
+    var total = sch.totalDays;
+    // reserve a right-edge gutter so the last bar + its duration label are never clipped
+    var gutter = Math.max(3, Math.ceil(total * 0.07));
+    var denom = total + gutter;
+
+    var TICKS = 8;
+    for (var t = 0; t < TICKS; t++) {
+      var tick = document.createElement("div");
+      tick.className = "tick";
+      tick.textContent = fmtShort(addDays(sch.start, Math.round(denom * (t/TICKS))));
+      axisEl.appendChild(tick);
+    }
+
+    sch.rows.forEach(function (r) {
+      var offset = Math.round((r.start - sch.start) / 86400000);
+      var leftPct = (offset / denom) * 100;
+      var widthPct = (r.days / denom) * 100;
+      var rightPct = ((offset + r.days) / denom) * 100;
+
+      var grow = document.createElement("div"); grow.className = "grow";
+      var name = document.createElement("div"); name.className = "name"; name.textContent = r.name; name.title = r.name;
+      var track = document.createElement("div"); track.className = "track";
+
+      var bar = document.createElement("div"); bar.className = "bar";
+      bar.style.left = leftPct + "%";
+      bar.style.width = "calc(" + widthPct + "% - 2px)";
+      bar.style.background = r.color;
+      bar.title = r.name + " · " + fmtShort(r.start) + " → " + fmtShort(r.end) + " (" + r.days + " days)";
+
+      // duration sits just past the bar's right edge so it never gets clipped
+      var dur = document.createElement("span"); dur.className = "dur";
+      dur.textContent = r.days + "d";
+      dur.style.left = rightPct + "%";
+
+      track.appendChild(bar);
+      track.appendChild(dur);
+      grow.appendChild(name); grow.appendChild(track);
+      barsEl.appendChild(grow);
+    });
+  }
+
+  // ---- reports table ----
+  function renderReport(sch) {
+    var body = $("repBody"); body.innerHTML = "";
+    sch.rows.forEach(function (r, i) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + (i+1) + "</td>" +
+        "<td><span class='ph'><span class='swatch' style='background:" + r.color + "'></span>" + escapeHtml(r.name) + "</span></td>" +
+        "<td>" + fmtMed(r.start) + "</td>" +
+        "<td>" + fmtMed(r.end) + "</td>" +
+        "<td class='num'>" + r.days + "</td>";
+      body.appendChild(tr);
+    });
+    var foot = $("repFoot"); foot.innerHTML = "";
+    var weeks = Math.round(sch.totalDays / 7 * 10) / 10;
+    var tr = document.createElement("tr"); tr.className = "total";
+    tr.innerHTML = "<td></td><td>Total — " + sch.rows.length + " phases</td><td>" +
+      fmtMed(sch.start) + "</td><td>" + fmtMed(sch.finish) + "</td><td class='num'>" +
+      sch.totalDays + " <span style='color:var(--muted);font-weight:500'>(" + weeks + "w)</span></td>";
+    foot.appendChild(tr);
+  }
+
+  function escapeHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"})[c]; }); }
+
+  // ---- master render ----
+  function renderAll() {
+    var sch = computeSchedule();
+    var projName = $("projName").value || "Project";
+    var weeks = Math.round(sch.totalDays / 7 * 10) / 10;
+
+    $("topTitle").textContent = projName;
+    $("ovProjName").textContent = projName;
+    $("schTitle").textContent = projName + " — Schedule";
+    $("repTitle").textContent = projName + " — Schedule Report";
+
+    // overview tiles
+    $("ovStart").textContent = fmtShort(sch.start);
+    $("ovStartSub").textContent = sch.start.getFullYear();
+    $("ovDur").textContent = sch.totalDays + " days";
+    $("ovDurSub").textContent = "≈ " + weeks + " weeks";
+    $("ovPhases").textContent = sch.rows.length;
+    $("ovFinish").textContent = fmtShort(sch.finish);
+    $("ovFinishSub").textContent = sch.finish.getFullYear();
+
+    // badges
+    $("ovBadge").textContent = fmtLong(sch.finish);
+    $("schBadge").textContent = fmtLong(sch.finish);
+    $("repBadge").textContent = fmtLong(sch.finish);
+
+    renderGantt(sch, $("ovAxis"), $("ovBars"));
+    renderGantt(sch, $("schAxis"), $("schBars"));
+    renderReport(sch);
+  }
+
+  // ---- view switching ----
+  function setView(view) {
+    document.querySelectorAll(".nav-item[data-view]").forEach(function (n) {
+      n.classList.toggle("active", n.getAttribute("data-view") === view);
+    });
+    document.querySelectorAll(".view").forEach(function (v) {
+      v.classList.toggle("active", v.id === "view-" + view);
+    });
+    var label = view.charAt(0).toUpperCase() + view.slice(1);
+    $("crumb").textContent = label;
+    window.scrollTo(0, 0);
+  }
+
+  // ---- PDF export ----
+  // Builds a standalone, print-styled document (no buttons / nav / inputs)
+  // that is captured for the PDF, then discarded.
+  function buildPdfDoc(sch) {
+    var projName = $("projName").value || "Project";
+    var projType = $("projType").value || "—";
+    var crew = $("crewSize").value || "—";
+    var weeks = Math.round(sch.totalDays / 7 * 10) / 10;
+
+    var doc = document.createElement("div");
+    doc.id = "pdfDoc";
+    doc.style.cssText = "position:fixed;left:-10000px;top:0;width:820px;background:#fff;" +
+      "font-family:'Inter',system-ui,-apple-system,sans-serif;color:#1e293b;";
+
+    function metaCell(k, v) {
+      return "<div style='background:#f5f6fa;border:1px solid #e9edf3;border-radius:10px;padding:11px 13px;'>" +
+        "<div style='font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:600;'>" + k + "</div>" +
+        "<div style='font-size:14px;font-weight:700;margin-top:3px;'>" + v + "</div></div>";
+    }
+    function sectionLabel(t) {
+      return "<div style='font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;font-weight:700;margin-bottom:12px;'>" + t + "</div>";
+    }
+
+    // ----- header band -----
+    var header = document.createElement("div");
+    header.style.cssText = "padding:32px 40px 22px;border-bottom:3px solid #0f766e;";
+    header.innerHTML =
+      "<div style='display:flex;align-items:flex-end;justify-content:space-between;'>" +
+        "<div style='display:flex;align-items:center;gap:13px;'>" +
+          "<div style='width:46px;height:46px;border-radius:11px;background:linear-gradient(135deg,#0f766e,#14b8a6);display:flex;align-items:center;justify-content:center;'>" +
+            "<svg width='25' height='25' viewBox='0 0 24 24' fill='none' stroke='#fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 21h18'/><path d='M5 21V7l7-4 7 4v14'/><path d='M9 21v-6h6v6'/></svg>" +
+          "</div>" +
+          "<div><div style='font-size:21px;font-weight:800;letter-spacing:-.4px;'>PlanRight</div>" +
+            "<div style='font-size:12px;color:#94a3b8;font-weight:500;'>Project Schedule</div></div>" +
+        "</div>" +
+        "<div style='text-align:right;'>" +
+          "<div style='font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;font-weight:600;'>Projected Finish</div>" +
+          "<div style='font-size:18px;font-weight:800;color:#0f766e;margin-top:3px;'>" + fmtLong(sch.finish) + "</div>" +
+        "</div>" +
+      "</div>";
+
+    // ----- project title + meta grid -----
+    var meta = document.createElement("div");
+    meta.style.cssText = "padding:24px 40px 4px;";
+    meta.innerHTML =
+      "<div style='font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:16px;'>" + escapeHtml(projName) + "</div>" +
+      "<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:14px;'>" +
+        metaCell("Project Type", escapeHtml(projType)) +
+        metaCell("Start Date", fmtMed(sch.start)) +
+        metaCell("Crew Size", escapeHtml(String(crew)) + " people") +
+        metaCell("Duration", sch.totalDays + " days · " + weeks + " wks") +
+      "</div>";
+
+    // ----- Gantt timeline -----
+    var gsec = document.createElement("div");
+    gsec.style.cssText = "padding:24px 40px 6px;";
+    gsec.innerHTML = sectionLabel("Project Timeline");
+    var ginner = document.createElement("div");
+    var axis = document.createElement("div"); axis.className = "axis";
+    var bars = document.createElement("div");
+    ginner.appendChild(axis); ginner.appendChild(bars);
+    gsec.appendChild(ginner);
+
+    // ----- phase summary table -----
+    var tsec = document.createElement("div");
+    tsec.style.cssText = "padding:18px 40px 6px;";
+    tsec.innerHTML = sectionLabel("Phase Summary");
+    var table = document.createElement("table");
+    table.className = "report"; table.style.width = "100%";
+    var bodyRows = "";
+    sch.rows.forEach(function (r, i) {
+      bodyRows += "<tr><td>" + (i + 1) + "</td>" +
+        "<td><span class='ph'><span class='swatch' style='background:" + r.color + "'></span>" + escapeHtml(r.name) + "</span></td>" +
+        "<td>" + fmtMed(r.start) + "</td><td>" + fmtMed(r.end) + "</td>" +
+        "<td class='num'>" + r.days + "</td></tr>";
+    });
+    table.innerHTML =
+      "<thead><tr><th>#</th><th>Phase</th><th>Start</th><th>End</th><th class='num'>Days</th></tr></thead>" +
+      "<tbody>" + bodyRows + "</tbody>" +
+      "<tbody><tr class='total'><td></td><td>Total — " + sch.rows.length + " phases</td>" +
+        "<td>" + fmtMed(sch.start) + "</td><td>" + fmtMed(sch.finish) + "</td>" +
+        "<td class='num'>" + sch.totalDays + " <span style='color:#94a3b8;font-weight:500'>(" + weeks + "w)</span></td></tr></tbody>";
+    tsec.appendChild(table);
+
+    // ----- footer (placed at the bottom of the last page) -----
+    var footer = document.createElement("div");
+    footer.style.cssText = "background:#fff;padding:16px 40px 22px;border-top:1px solid #e9edf3;" +
+      "display:flex;align-items:center;justify-content:space-between;color:#94a3b8;font-size:11px;";
+    footer.innerHTML = "<span>Generated on " + fmtLong(new Date()) + "</span>" +
+      "<span style='font-weight:600;color:#0f766e;'>PlanRight &middot; Project Schedule</span>";
+
+    // Group sections into atomic blocks. Each block is captured and placed
+    // whole — it is never split across a page boundary.
+    var intro = document.createElement("div");      // header + meta + Gantt (page 1)
+    intro.style.cssText = "background:#fff;padding-bottom:8px;";
+    intro.appendChild(header); intro.appendChild(meta); intro.appendChild(gsec);
+
+    var summary = document.createElement("div");     // phase table (kept together)
+    summary.style.cssText = "background:#fff;padding-bottom:8px;";
+    summary.appendChild(tsec);
+
+    doc.appendChild(intro);
+    doc.appendChild(summary);
+    doc.appendChild(footer);
+
+    // render the real colored Gantt bars into the doc
+    renderGantt(sch, axis, bars);
+    return { doc: doc, blocks: [intro, summary], footer: footer };
+  }
+
+  function downloadPdf() {
+    var btn = $("downloadPdf");
+    btn.disabled = true; var prev = btn.innerHTML;
+    btn.innerHTML = "Generating…";
+
+    var sch = computeSchedule();
+    var built = buildPdfDoc(sch);
+    document.body.appendChild(built.doc);
+
+    var opts = { scale: 2, backgroundColor: "#ffffff", windowWidth: 820 };
+    var targets = built.blocks.concat([built.footer]);
+
+    Promise.all(targets.map(function (el) { return html2canvas(el, opts); }))
+      .then(function (canvases) {
+        var jsPDF = window.jspdf.jsPDF;
+        var pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+        var pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+
+        var footerCanvas = canvases.pop();   // last target is the footer
+        var blocks = canvases;
+        var ptH = function (c) { return c.height * (pageW / c.width); };
+
+        var y = 0;
+        function newPage() { pdf.addPage(); y = 0; }
+
+        // Place each block whole; move to the next page rather than split it.
+        blocks.forEach(function (c) {
+          var h = ptH(c);
+          if (h <= pageH) {
+            if (y > 0 && y + h > pageH) newPage();
+            pdf.addImage(c, "PNG", 0, y, pageW, h);
+            y += h;
+          } else {
+            // block taller than a full page (very long project) — slice only this block
+            if (y > 0) newPage();
+            var pos = 0, left = h;
+            pdf.addImage(c, "PNG", 0, 0, pageW, h);
+            left -= pageH;
+            while (left > 0) { newPage(); pos -= pageH; pdf.addImage(c, "PNG", 0, pos, pageW, h); left -= pageH; }
+            y = h % pageH || pageH;
+          }
+        });
+
+        // Footer: pinned to the bottom of whatever the last page ends up being.
+        var fh = ptH(footerCanvas);
+        var fy = pageH - fh;
+        if (y > fy) newPage();
+        pdf.addImage(footerCanvas, "PNG", 0, fy, pageW, fh);
+
+        var name = ($("projName").value || "PlanRight").replace(/[^\w\-]+/g, "_");
+        pdf.save(name + "_schedule.pdf");
+      })
+      .catch(function (e) { alert("PDF export failed: " + e.message); })
+      .finally(function () {
+        if (built.doc.parentNode) built.doc.parentNode.removeChild(built.doc);
+        btn.disabled = false; btn.innerHTML = prev;
+      });
+  }
+
+  function init() {
+    var t = new Date();
+    $("startDate").value = t.getFullYear() + "-" + String(t.getMonth()+1).padStart(2,"0") + "-" + String(t.getDate()).padStart(2,"0");
+
+    $("startDate").addEventListener("change", renderAll);
+    $("projName").addEventListener("input", renderAll);
+    $("addPhase").addEventListener("click", function () { phases.push({ name:"New phase", days:7 }); renderPhaseInputs(); renderAll(); });
+    $("downloadPdf").addEventListener("click", downloadPdf);
+
+    document.querySelectorAll("[data-view]").forEach(function (el) {
+      el.addEventListener("click", function () { setView(el.getAttribute("data-view")); });
+    });
+    $("generateBtn").addEventListener("click", function () { renderAll(); setView("schedule"); });
+
+    renderPhaseInputs();
+    renderAll();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+</body>
+</html>
