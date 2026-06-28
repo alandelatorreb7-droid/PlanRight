@@ -175,6 +175,44 @@
   .finish-badge .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .7px; font-weight: 600; opacity: .85; }
   .finish-badge .big { font-size: 17px; font-weight: 700; color: var(--ink); margin-left: 2px; }
 
+  /* ---- overview split + info panel ---- */
+  .overview-split { display: grid; grid-template-columns: 65% 35%; gap: 20px; align-items: start; }
+  @media (max-width: 1000px) { .overview-split { grid-template-columns: 1fr; } }
+  .overview-split .card + .card { margin-top: 0; }
+
+  .ring-wrap { position: relative; width: 150px; height: 150px; margin: 4px auto 20px; }
+  .ring { width: 150px; height: 150px; transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: var(--line); stroke-width: 12; }
+  .ring-fg { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset .5s ease; }
+  .ring-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring-label .pct { font-size: 30px; font-weight: 800; letter-spacing: -1px; color: var(--ink); line-height: 1; }
+  .ring-label .cap { font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); font-weight: 600; margin-top: 5px; }
+
+  .info-list { border-top: 1px solid var(--line); }
+  .info-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 2px; border-bottom: 1px solid var(--line); }
+  .info-row .k { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; }
+  .info-row .v { font-size: 13px; color: var(--ink); font-weight: 700; text-align: right; }
+
+  .milestone {
+    margin-top: 16px; background: var(--accent-tint); border: 1px solid #cfeae5;
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .milestone .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px; color: var(--accent); font-weight: 700; }
+  .milestone .nm { font-size: 14.5px; font-weight: 700; color: var(--ink); margin-top: 5px; line-height: 1.3; }
+  .milestone .dt { font-size: 12.5px; color: var(--ink-soft); margin-top: 3px; }
+
+  /* ---- phase status dots + today line ---- */
+  .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: middle; flex: none; }
+  .status-dot.done { background: #22c55e; }
+  .status-dot.active { background: #f59e0b; }
+  .status-dot.upcoming { background: #cbd5e1; }
+  .today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #ef4444; z-index: 3; pointer-events: none; }
+  .today-line::before {
+    content: "Today"; position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
+    background: #ef4444; color: #fff; font-size: 9px; font-weight: 700; letter-spacing: .3px;
+    padding: 1px 5px; border-radius: 4px; white-space: nowrap;
+  }
+
   /* ============ GANTT ============ */
   .gantt-scroll { overflow-x: auto; padding-bottom: 6px; }
   .gantt-inner { min-width: 640px; }
@@ -346,23 +384,50 @@
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-head">
-            <div>
-              <h3>Timeline Overview</h3>
-              <p id="ovProjName">Residential Build</p>
+        <div class="overview-split">
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3>Timeline Overview</h3>
+                <p id="ovProjName">Residential Build</p>
+              </div>
+              <button class="btn btn-ghost" data-view="schedule">Edit phases</button>
             </div>
-            <button class="btn btn-ghost" data-view="schedule">Edit phases</button>
+            <div class="finish-badge">
+              <span class="dot"></span>
+              <span class="lbl">Projected Finish</span>
+              <span class="big" id="ovBadge">—</span>
+            </div>
+            <div class="gantt-scroll">
+              <div class="gantt-inner">
+                <div class="axis" id="ovAxis"></div>
+                <div id="ovBars"></div>
+              </div>
+            </div>
           </div>
-          <div class="finish-badge">
-            <span class="dot"></span>
-            <span class="lbl">Projected Finish</span>
-            <span class="big" id="ovBadge">—</span>
-          </div>
-          <div class="gantt-scroll">
-            <div class="gantt-inner">
-              <div class="axis" id="ovAxis"></div>
-              <div id="ovBars"></div>
+
+          <div class="card">
+            <div class="card-head"><div><h3>Progress</h3><p>Based on today's date</p></div></div>
+            <div class="ring-wrap">
+              <svg class="ring" viewBox="0 0 150 150">
+                <circle class="ring-bg" cx="75" cy="75" r="64" />
+                <circle class="ring-fg" id="ovRing" cx="75" cy="75" r="64" />
+              </svg>
+              <div class="ring-label">
+                <span class="pct" id="ovProgPct">0%</span>
+                <span class="cap">Complete</span>
+              </div>
+            </div>
+            <div class="info-list">
+              <div class="info-row"><span class="k">Started</span><span class="v" id="ovInfoStart">—</span></div>
+              <div class="info-row"><span class="k">Target Finish</span><span class="v" id="ovInfoFinish">—</span></div>
+              <div class="info-row"><span class="k">Current Phase</span><span class="v" id="ovInfoPhase">—</span></div>
+              <div class="info-row"><span class="k">Days Remaining</span><span class="v" id="ovInfoRemain">—</span></div>
+            </div>
+            <div class="milestone">
+              <div class="lbl">Next Milestone</div>
+              <div class="nm" id="ovMileName">—</div>
+              <div class="dt" id="ovMileDate">—</div>
             </div>
           </div>
         </div>
@@ -377,6 +442,14 @@
             <div class="field">
               <label>Project name</label>
               <input type="text" id="projName" value="Residential Build" />
+            </div>
+            <div class="field">
+              <label>Client name</label>
+              <input type="text" id="clientName" placeholder="e.g. Jane Smith" />
+            </div>
+            <div class="field">
+              <label>Project address</label>
+              <input type="text" id="projAddress" placeholder="e.g. 123 Maple St, Springfield" />
             </div>
             <div class="field">
               <label>Start date</label>
@@ -503,6 +576,12 @@
     return new Date(+p[0], +p[1]-1, +p[2]);
   }
   function colorFor(i) { return PALETTE[i % PALETTE.length]; }
+  function today0() { var t = new Date(); t.setHours(0,0,0,0); return t; }
+  function phaseStatus(r, today) {
+    if (today > r.end) return "done";
+    if (today >= r.start) return "active";
+    return "upcoming";
+  }
 
   function computeSchedule() {
     var start = parseStart();
@@ -551,7 +630,9 @@
   // ---- gantt renderer (reusable for overview + schedule) ----
   function renderGantt(sch, axisEl, barsEl) {
     axisEl.innerHTML = ""; barsEl.innerHTML = "";
+    barsEl.style.position = "relative";
     if (!sch.rows.length) return;
+    var today = today0();
     var total = sch.totalDays;
     // reserve a right-edge gutter so the last bar + its duration label are never clipped
     var gutter = Math.max(3, Math.ceil(total * 0.07));
@@ -572,7 +653,13 @@
       var rightPct = ((offset + r.days) / denom) * 100;
 
       var grow = document.createElement("div"); grow.className = "grow";
-      var name = document.createElement("div"); name.className = "name"; name.textContent = r.name; name.title = r.name;
+      var name = document.createElement("div"); name.className = "name"; name.title = r.name;
+      var dot = document.createElement("span");
+      var st = phaseStatus(r, today);
+      dot.className = "status-dot " + st;
+      dot.title = st === "done" ? "Done" : st === "active" ? "In Progress" : "Upcoming";
+      name.appendChild(dot);
+      name.appendChild(document.createTextNode(r.name));
       var track = document.createElement("div"); track.className = "track";
 
       var bar = document.createElement("div"); bar.className = "bar";
@@ -591,6 +678,15 @@
       grow.appendChild(name); grow.appendChild(track);
       barsEl.appendChild(grow);
     });
+
+    // vertical "Today" marker, aligned to the track region (after the 230px name column)
+    var todayOffset = (today - sch.start) / 86400000;
+    if (todayOffset >= 0 && todayOffset <= denom) {
+      var line = document.createElement("div");
+      line.className = "today-line";
+      line.style.left = "calc(230px + (100% - 230px) * " + (todayOffset / denom) + ")";
+      barsEl.appendChild(line);
+    }
   }
 
   // ---- reports table ----
@@ -616,6 +712,53 @@
   }
 
   function escapeHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"})[c]; }); }
+
+  // ---- overview info panel (progress ring + info list + next milestone) ----
+  function renderInfoPanel(sch) {
+    var today = today0();
+    var start = sch.start, finish = sch.finish;
+    var span = finish - start;
+    var pct;
+    if (span <= 0 || today <= start) pct = 0;
+    else if (today >= finish) pct = 100;
+    else pct = (today - start) / span * 100;
+    pct = Math.round(pct);
+
+    var ring = $("ovRing");
+    var C = 2 * Math.PI * 64;
+    ring.style.strokeDasharray = C;
+    ring.style.strokeDashoffset = C * (1 - pct / 100);
+    $("ovProgPct").textContent = pct + "%";
+
+    $("ovInfoStart").textContent = fmtMed(start);
+    $("ovInfoFinish").textContent = fmtMed(finish);
+
+    // current phase = the one active today
+    var current = "";
+    for (var i = 0; i < sch.rows.length; i++) {
+      var r = sch.rows[i];
+      if (today >= r.start && today <= r.end) { current = r.name; break; }
+    }
+    if (!current) current = today < start ? "Not started" : (today > finish ? "Completed" : "—");
+    $("ovInfoPhase").textContent = current;
+
+    // days remaining until finish
+    var remain = today >= finish ? 0 : Math.ceil((finish - today) / 86400000);
+    $("ovInfoRemain").textContent = remain + (remain === 1 ? " day" : " days");
+
+    // next milestone = first phase that starts after today
+    var next = null;
+    for (var j = 0; j < sch.rows.length; j++) {
+      if (sch.rows[j].start > today) { next = sch.rows[j]; break; }
+    }
+    if (next) {
+      $("ovMileName").textContent = next.name;
+      $("ovMileDate").textContent = "Expected start · " + fmtMed(next.start);
+    } else {
+      $("ovMileName").textContent = today > finish ? "Project complete" : "Final phase in progress";
+      $("ovMileDate").textContent = "—";
+    }
+  }
 
   // ---- master render ----
   function renderAll() {
@@ -644,6 +787,7 @@
 
     renderGantt(sch, $("ovAxis"), $("ovBars"));
     renderGantt(sch, $("schAxis"), $("schBars"));
+    renderInfoPanel(sch);
     renderReport(sch);
   }
 
@@ -667,6 +811,8 @@
     var projName = $("projName").value || "Project";
     var projType = $("projType").value || "—";
     var crew = $("crewSize").value || "—";
+    var client = ($("clientName").value || "").trim();
+    var address = ($("projAddress").value || "").trim();
     var weeks = Math.round(sch.totalDays / 7 * 10) / 10;
 
     var doc = document.createElement("div");
@@ -704,8 +850,14 @@
     // ----- project title + meta grid -----
     var meta = document.createElement("div");
     meta.style.cssText = "padding:24px 40px 4px;";
+    var subLine = "";
+    if (client) subLine += "<div style='font-size:13.5px;color:#1e293b;font-weight:600;'>" + escapeHtml(client) + "</div>";
+    if (address) subLine += "<div style='font-size:12.5px;color:#475569;font-weight:500;margin-top:2px;'>" + escapeHtml(address) + "</div>";
+    if (subLine) subLine = "<div style='margin-bottom:16px;'>" + subLine + "</div>";
+
     meta.innerHTML =
-      "<div style='font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:16px;'>" + escapeHtml(projName) + "</div>" +
+      "<div style='font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:" + (subLine ? "6px" : "16px") + ";'>" + escapeHtml(projName) + "</div>" +
+      subLine +
       "<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:14px;'>" +
         metaCell("Project Type", escapeHtml(projType)) +
         metaCell("Start Date", fmtMed(sch.start)) +
