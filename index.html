@@ -445,11 +445,11 @@
             </div>
             <div class="field">
               <label>Client name</label>
-              <input type="text" id="clientName" placeholder="e.g. Jane Smith" />
+              <input type="text" id="clientName" placeholder="Enter client or company name" />
             </div>
             <div class="field">
               <label>Project address</label>
-              <input type="text" id="projAddress" placeholder="e.g. 123 Maple St, Springfield" />
+              <input type="text" id="projAddress" placeholder="Enter the job site address" />
             </div>
             <div class="field">
               <label>Start date</label>
@@ -472,9 +472,27 @@
                 <input type="number" id="crewSize" min="1" value="6" />
               </div>
             </div>
+            <div class="field">
+              <label>Work week</label>
+              <select id="workWeek">
+                <option value="5">5 days (Mon–Fri)</option>
+                <option value="6" selected>6 days (Mon–Sat)</option>
+                <option value="7">7 days (Mon–Sun)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Holidays (skipped)</label>
+              <div style="display:flex; gap:8px;">
+                <input type="date" id="holidayInput" style="flex:1;" />
+                <button type="button" class="btn btn-ghost" id="addHoliday" style="white-space:nowrap;">Add holiday</button>
+              </div>
+              <div id="holidayList" style="margin-top:10px;"></div>
+            </div>
             <div class="row-head"><span></span><span>Phase</span><span>Days</span><span></span></div>
             <div id="phaseList"></div>
             <button class="add-phase" id="addPhase">+ Add phase</button>
+            <button id="resetDefaults" type="button" title="Clear saved data and restore defaults"
+              style="margin-top:10px;width:100%;padding:8px;border:none;background:none;color:var(--muted);font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;text-decoration:underline;">Reset to defaults</button>
           </div>
 
           <!-- gantt -->
@@ -563,6 +581,8 @@
   ];
 
   var phases = DEFAULT_PHASES.map(function (p) { return { name: p.name, days: p.days }; });
+  var workWeek = 6;    // 5 = Mon–Fri, 6 = Mon–Sat, 7 = all days
+  var holidays = [];   // array of "YYYY-MM-DD" strings, skipped in date calculations
   var $ = function (id) { return document.getElementById(id); };
 
   function addDays(d, n) { var x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
@@ -583,20 +603,53 @@
     return "upcoming";
   }
 
+  // ---- working-day calendar ----
+  function dateKey(d) { return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+  function parseYMD(v) { var p = v.split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
+  function isWorkingDay(d) {
+    var wd = d.getDay();                              // 0 Sun … 6 Sat
+    if (workWeek === 5 && (wd === 0 || wd === 6)) return false;
+    if (workWeek === 6 && wd === 0) return false;
+    if (holidays.indexOf(dateKey(d)) !== -1) return false;
+    return true;
+  }
+  function nextWorkingDay(d) {
+    var x = new Date(d.getTime()), guard = 0;
+    while (!isWorkingDay(x) && guard < 4000) { x = addDays(x, 1); guard++; }
+    return x;
+  }
+
+  // ---- crew sizing ----
+  // base days are entered for a crew of 3; more crew shortens the phase, fewer lengthens it.
+  function crewVal() { return Math.max(1, parseInt($("crewSize").value, 10) || 3); }
+  function adjustedDays(base, crew) {
+    var b = Math.max(1, parseInt(base, 10) || 1);
+    var adj = Math.ceil(b / (crew / 3));
+    var floor = Math.ceil(b * 0.40);   // fixed waits (e.g. concrete curing) can't be shortened further
+    return Math.max(floor, adj);
+  }
+
   function computeSchedule() {
-    var start = parseStart();
+    var crew = crewVal();
+    // project effectively begins on the first working day on/after the chosen start
+    var start = nextWorkingDay(parseStart());
     var cursor = new Date(start.getTime());
     var rows = [];
     phases.forEach(function (p, i) {
-      var days = Math.max(1, parseInt(p.days, 10) || 1);
-      var s = new Date(cursor.getTime());
-      var e = addDays(s, days - 1);
-      rows.push({ name: p.name || ("Phase " + (i+1)), days: days, start: s, end: e, color: colorFor(i) });
-      cursor = addDays(e, 1);
+      var base = Math.max(1, parseInt(p.days, 10) || 1);
+      var days = adjustedDays(base, crew);   // crew-adjusted working days drive the dates
+      var s = nextWorkingDay(cursor);
+      var e = new Date(s.getTime());
+      // the start counts as working day 1; advance over working days only
+      for (var counted = 1; counted < days; counted++) {
+        e = nextWorkingDay(addDays(e, 1));
+      }
+      rows.push({ name: p.name || ("Phase " + (i+1)), base: base, days: days, start: s, end: e, color: colorFor(i) });
+      cursor = addDays(e, 1);   // next phase searches from the day after this one ends
     });
     var totalDays = rows.reduce(function (a, r) { return a + r.days; }, 0);
     var finish = rows.length ? rows[rows.length-1].end : start;
-    return { start: start, finish: finish, totalDays: totalDays, rows: rows };
+    return { start: start, finish: finish, totalDays: totalDays, rows: rows, crew: crew };
   }
 
   // ---- phase editor ----
@@ -627,16 +680,40 @@
     });
   }
 
+  // ---- holiday chips ----
+  function renderHolidays() {
+    var wrap = $("holidayList");
+    wrap.innerHTML = "";
+    if (!holidays.length) {
+      wrap.innerHTML = "<span style='font-size:12px;color:var(--muted);'>No holidays added.</span>";
+      return;
+    }
+    holidays.forEach(function (h, i) {
+      var chip = document.createElement("span");
+      chip.style.cssText = "display:inline-flex;align-items:center;gap:6px;background:var(--accent-tint);" +
+        "color:var(--accent);border:1px solid #cfeae5;border-radius:8px;padding:4px 8px;margin:0 6px 6px 0;font-size:12px;font-weight:600;";
+      var label = document.createElement("span");
+      label.textContent = fmtMed(parseYMD(h));
+      var del = document.createElement("button");
+      del.type = "button"; del.innerHTML = "&times;"; del.title = "Remove holiday";
+      del.style.cssText = "border:none;background:none;color:var(--accent);cursor:pointer;font-size:15px;line-height:1;padding:0;";
+      del.addEventListener("click", function () { holidays.splice(i, 1); renderHolidays(); renderAll(); });
+      chip.appendChild(label); chip.appendChild(del);
+      wrap.appendChild(chip);
+    });
+  }
+
   // ---- gantt renderer (reusable for overview + schedule) ----
   function renderGantt(sch, axisEl, barsEl) {
     axisEl.innerHTML = ""; barsEl.innerHTML = "";
     barsEl.style.position = "relative";
     if (!sch.rows.length) return;
     var today = today0();
-    var total = sch.totalDays;
+    // layout spans real calendar days (start → finish), so weekend/holiday gaps show correctly
+    var spanDays = Math.round((sch.finish - sch.start) / 86400000) + 1;
     // reserve a right-edge gutter so the last bar + its duration label are never clipped
-    var gutter = Math.max(3, Math.ceil(total * 0.07));
-    var denom = total + gutter;
+    var gutter = Math.max(3, Math.ceil(spanDays * 0.07));
+    var denom = spanDays + gutter;
 
     var TICKS = 8;
     for (var t = 0; t < TICKS; t++) {
@@ -648,9 +725,10 @@
 
     sch.rows.forEach(function (r) {
       var offset = Math.round((r.start - sch.start) / 86400000);
+      var calDays = Math.round((r.end - r.start) / 86400000) + 1;   // calendar span of the bar
       var leftPct = (offset / denom) * 100;
-      var widthPct = (r.days / denom) * 100;
-      var rightPct = ((offset + r.days) / denom) * 100;
+      var widthPct = (calDays / denom) * 100;
+      var rightPct = ((offset + calDays) / denom) * 100;
 
       var grow = document.createElement("div"); grow.className = "grow";
       var name = document.createElement("div"); name.className = "name"; name.title = r.name;
@@ -660,6 +738,13 @@
       dot.title = st === "done" ? "Done" : st === "active" ? "In Progress" : "Upcoming";
       name.appendChild(dot);
       name.appendChild(document.createTextNode(r.name));
+      // show the crew-size math when base differs from the adjusted duration
+      if (r.base !== r.days) {
+        var note = document.createElement("div");
+        note.style.cssText = "font-size:10.5px;font-weight:500;color:var(--muted);margin-top:2px;margin-left:17px;";
+        note.textContent = "base " + r.base + "d → " + r.days + "d with " + sch.crew + " crew";
+        name.appendChild(note);
+      }
       var track = document.createElement("div"); track.className = "track";
 
       var bar = document.createElement("div"); bar.className = "bar";
@@ -789,6 +874,8 @@
     renderGantt(sch, $("schAxis"), $("schBars"));
     renderInfoPanel(sch);
     renderReport(sch);
+
+    saveState();
   }
 
   // ---- view switching ----
@@ -883,13 +970,16 @@
     table.className = "report"; table.style.width = "100%";
     var bodyRows = "";
     sch.rows.forEach(function (r, i) {
+      var crewNote = (r.base !== r.days)
+        ? "<div style='font-size:10px;color:#94a3b8;font-weight:500;margin-top:3px;margin-left:18px;'>base " + r.base + "d → " + r.days + "d with " + sch.crew + " crew</div>"
+        : "";
       bodyRows += "<tr><td>" + (i + 1) + "</td>" +
-        "<td><span class='ph'><span class='swatch' style='background:" + r.color + "'></span>" + escapeHtml(r.name) + "</span></td>" +
+        "<td><span class='ph'><span class='swatch' style='background:" + r.color + "'></span>" + escapeHtml(r.name) + "</span>" + crewNote + "</td>" +
         "<td>" + fmtMed(r.start) + "</td><td>" + fmtMed(r.end) + "</td>" +
         "<td class='num'>" + r.days + "</td></tr>";
     });
     table.innerHTML =
-      "<thead><tr><th>#</th><th>Phase</th><th>Start</th><th>End</th><th class='num'>Days</th></tr></thead>" +
+      "<thead><tr><th>#</th><th>Phase</th><th>Start</th><th>End</th><th class='num'>Days (crew " + sch.crew + ")</th></tr></thead>" +
       "<tbody>" + bodyRows + "</tbody>" +
       "<tbody><tr class='total'><td></td><td>Total — " + sch.rows.length + " phases</td>" +
         "<td>" + fmtMed(sch.start) + "</td><td>" + fmtMed(sch.finish) + "</td>" +
@@ -981,13 +1071,106 @@
       });
   }
 
-  function init() {
+  // ---- persistence (localStorage autosave / restore) ----
+  var STORAGE_KEY = "planright.state.v1";
+  var DEFAULTS = null;   // snapshot of original field defaults, captured on first load
+
+  function todayStr() {
     var t = new Date();
-    $("startDate").value = t.getFullYear() + "-" + String(t.getMonth()+1).padStart(2,"0") + "-" + String(t.getDate()).padStart(2,"0");
+    return t.getFullYear() + "-" + String(t.getMonth()+1).padStart(2,"0") + "-" + String(t.getDate()).padStart(2,"0");
+  }
+
+  function collectState() {
+    return {
+      projName:    $("projName").value,
+      clientName:  $("clientName").value,
+      projAddress: $("projAddress").value,
+      startDate:   $("startDate").value,
+      projType:    $("projType").value,
+      crewSize:    $("crewSize").value,
+      workWeek:    workWeek,
+      holidays:    holidays.slice(),
+      phases:      phases.map(function (p) { return { name: p.name, days: p.days }; })
+    };
+  }
+
+  function saveState() {
+    // fail silently if storage is unavailable (private mode / quota) — the app still works
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collectState())); } catch (e) {}
+  }
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function applyState(s) {
+    if (!s || typeof s !== "object") return;
+    if (typeof s.projName    === "string") $("projName").value    = s.projName;
+    if (typeof s.clientName  === "string") $("clientName").value  = s.clientName;
+    if (typeof s.projAddress === "string") $("projAddress").value = s.projAddress;
+    if (s.startDate)                       $("startDate").value   = s.startDate;
+    if (s.projType)                        $("projType").value    = s.projType;
+    if (s.crewSize != null && s.crewSize !== "") $("crewSize").value = s.crewSize;
+    if (s.workWeek === 5 || s.workWeek === 6 || s.workWeek === 7) {
+      workWeek = s.workWeek; $("workWeek").value = String(workWeek);
+    }
+    if (Array.isArray(s.holidays)) {
+      holidays = s.holidays.filter(function (h) { return typeof h === "string" && /^\d{4}-\d{2}-\d{2}$/.test(h); });
+    }
+    if (Array.isArray(s.phases) && s.phases.length) {
+      phases = s.phases.map(function (p) {
+        return { name: (p && typeof p.name === "string") ? p.name : "", days: (p && p.days != null) ? p.days : 1 };
+      });
+    }
+  }
+
+  function resetDefaults() {
+    if (!window.confirm("Reset to defaults? This clears your saved schedule and starts fresh.")) return;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    phases = DEFAULT_PHASES.map(function (p) { return { name: p.name, days: p.days }; });
+    workWeek = 6;
+    holidays = [];
+    $("projName").value    = DEFAULTS.projName;
+    $("clientName").value  = "";
+    $("projAddress").value = "";
+    $("projType").value    = DEFAULTS.projType;
+    $("crewSize").value    = DEFAULTS.crewSize;
+    $("workWeek").value    = "6";
+    $("startDate").value   = todayStr();
+    renderPhaseInputs();
+    renderHolidays();
+    renderAll();
+  }
+
+  function init() {
+    // capture the original field defaults before any saved state is applied
+    DEFAULTS = { projName: $("projName").value, projType: $("projType").value, crewSize: $("crewSize").value };
+
+    // fallback default start date (used on first-ever open or if none was saved)
+    $("startDate").value = todayStr();
+
+    // restore last session if one exists; otherwise the defaults above stand
+    applyState(loadState());
+    $("workWeek").value = String(workWeek);
 
     $("startDate").addEventListener("change", renderAll);
     $("projName").addEventListener("input", renderAll);
+    $("clientName").addEventListener("input", saveState);
+    $("projAddress").addEventListener("input", saveState);
+    $("projType").addEventListener("change", saveState);
+    $("crewSize").addEventListener("input", renderAll);
+    $("workWeek").addEventListener("change", function () { workWeek = parseInt($("workWeek").value, 10) || 6; renderAll(); });
+    $("addHoliday").addEventListener("click", function () {
+      var v = $("holidayInput").value;
+      if (!v) return;
+      if (holidays.indexOf(v) === -1) { holidays.push(v); holidays.sort(); renderHolidays(); renderAll(); }
+      $("holidayInput").value = "";
+    });
     $("addPhase").addEventListener("click", function () { phases.push({ name:"New phase", days:7 }); renderPhaseInputs(); renderAll(); });
+    $("resetDefaults").addEventListener("click", resetDefaults);
     $("downloadPdf").addEventListener("click", downloadPdf);
 
     document.querySelectorAll("[data-view]").forEach(function (el) {
@@ -996,6 +1179,7 @@
     $("generateBtn").addEventListener("click", function () { renderAll(); setView("schedule"); });
 
     renderPhaseInputs();
+    renderHolidays();
     renderAll();
   }
 
