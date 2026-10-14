@@ -6,8 +6,11 @@ finish date, and export a clean, professional PDF to share with clients.
 
 ## Features
 
-- **Sequential scheduling** — each phase starts the day after the previous ends;
-  dates recompute live as you edit.
+- **Linked scheduling** — every phase hangs off one other phase (or the project
+  start) with a dependency type: **FS** finish→start, **SS** start→start,
+  **FF** finish→finish, or **SF** start→finish. Add **lag** (+days) to wait longer
+  or **lead** (−days) to pull work earlier, so phases can overlap and run in
+  parallel. Everything counts in working days and recomputes live as you edit.
 - **Editable phases** — pre-filled with a standard residential build sequence;
   rename, re-time, add, or remove any phase.
 - **Dashboard UI** — sidebar navigation (Overview / Schedule / Reports), stat

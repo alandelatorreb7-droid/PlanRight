@@ -272,17 +272,45 @@
   }
   input:focus, select:focus { outline: none; border-color: var(--accent-soft); box-shadow: 0 0 0 3px rgba(20,184,166,.14); }
 
-  .row-head, .phase-row {
+  .row-head, .phase-row, .dep-row {
     display: grid; grid-template-columns: 18px 16px 1fr 58px 58px 28px; gap: 10px; align-items: center;
   }
   .row-head { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 600; padding: 0 0 8px; }
   .row-head span:nth-child(4), .row-head span:nth-child(5) { text-align: center; }
-  .phase-row { padding: 7px 0; border-bottom: 1px solid var(--line); }
-  .phase-row:last-of-type { border-bottom: none; }
-  .phase-row.dragging {
+  /* a phase and its dependency row travel together as one draggable block */
+  .phase-block { padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .phase-block:last-of-type { border-bottom: none; }
+  .phase-block.dragging {
     background: var(--accent-tint); border-radius: 9px; border-bottom-color: transparent;
     box-shadow: 0 4px 14px rgba(16,24,40,.12); opacity: .96;
   }
+  .dep-row { margin-top: 6px; }
+  .dep-row .arrow { color: var(--muted); font-size: 12px; text-align: center; line-height: 1; }
+  .dep-row select, .dep-row input[type="number"] {
+    padding: 6px 5px; font-size: 11.5px; border-radius: 7px; color: var(--ink-soft);
+  }
+  .dep-row input[type="number"] { text-align: center; }
+  .dep-row select:disabled { background: #f5f6fa; color: var(--muted); cursor: not-allowed; }
+
+  /* ---- collapsible "how dependencies work" primer ---- */
+  .dep-help { border: 1px solid var(--line); border-radius: 10px; background: #fafbfd; margin-bottom: 14px; }
+  .dep-help > summary { cursor: pointer; padding: 9px 12px; font-size: 12px; font-weight: 600; color: var(--accent); list-style: none; }
+  .dep-help > summary::-webkit-details-marker { display: none; }
+  .dep-help > summary::before { content: "B8  "; }
+  .dep-help[open] > summary::before { content: "BE  "; }
+  .dep-help .body { padding: 2px 12px 12px; font-size: 11.5px; color: var(--ink-soft); line-height: 1.55; }
+  .dep-help .body b { color: var(--ink); }
+  .dep-help .body p { margin: 0 0 7px; }
+  .dep-help .body p:last-child { margin-bottom: 0; }
+
+  /* ---- gantt dependency tag ---- */
+  .link-tag {
+    display: inline-block; margin-top: 3px; margin-left: 17px;
+    font-size: 10px; font-weight: 600; letter-spacing: .2px;
+    color: var(--accent); background: var(--accent-tint);
+    border: 1px solid #cfeae5; border-radius: 5px; padding: 1px 5px;
+  }
+  .link-tag.clamped { color: #b45309; background: #fef3c7; border-color: #fde68a; }
   .drag-handle {
     display: flex; align-items: center; justify-content: center;
     color: var(--muted); cursor: grab; user-select: none; touch-action: none;
@@ -301,8 +329,8 @@
   }
   .add-phase:hover { border-color: var(--accent-soft); background: var(--accent-tint); }
 
-  .schedule-grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
-  @media (max-width: 1000px) { .schedule-grid { grid-template-columns: 1fr; } }
+  .schedule-grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 1060px) { .schedule-grid { grid-template-columns: 1fr; } }
 
   /* ---- reports table ---- */
   table.report { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -347,7 +375,7 @@
       Reports
     </button>
 
-    <div class="foot">Sequential phases &middot; each starts the day after the previous ends.</div>
+    <div class="foot">Link phases with FS, SS, FF or SF dependencies &middot; add lag (+) or lead (&minus;) days to overlap work.</div>
   </aside>
 
   <!-- ============ MAIN ============ -->
@@ -492,6 +520,24 @@
               </div>
               <div id="holidayList" style="margin-top:10px;"></div>
             </div>
+            <details class="dep-help">
+              <summary>How dependencies work</summary>
+              <div class="body">
+                <p>Every phase waits on <b>one</b> other phase &mdash; or on the project start. The
+                  <b>link type</b> says which ends are tied together:</p>
+                <p><b>FS</b> &mdash; finish to start. This phase begins the working day after the other
+                  one finishes. The normal &ldquo;one after another&rdquo; order.</p>
+                <p><b>SS</b> &mdash; start to start. Both phases begin on the same day, so they run
+                  side by side.</p>
+                <p><b>FF</b> &mdash; finish to finish. Both phases end on the same day &mdash; handy for
+                  work that must wrap up alongside something else.</p>
+                <p><b>SF</b> &mdash; start to finish. This phase must be finished before the other one
+                  starts. Rare: useful for temporary work torn down when the next thing begins.</p>
+                <p><b>Lag / lead</b> nudges the link by working days. <b>+5</b> waits five extra days
+                  (lag). <b>&minus;5</b> pulls this phase five days earlier so the two overlap (lead).
+                  Leave it at <b>0</b> for no nudge.</p>
+              </div>
+            </details>
             <div class="row-head"><span></span><span></span><span>Phase</span><span>Crew</span><span>Days</span><span></span></div>
             <div id="phaseList"></div>
             <button class="add-phase" id="addPhase">+ Add phase</button>
@@ -502,7 +548,7 @@
           <!-- gantt -->
           <div class="card">
             <div class="card-head">
-              <div><h3 id="schTitle">Schedule</h3><p>Sequential build timeline</p></div>
+              <div><h3 id="schTitle">Schedule</h3><p>Linked build timeline</p></div>
             </div>
             <div class="finish-badge">
               <span class="dot"></span>
@@ -536,7 +582,7 @@
           </div>
           <table class="report">
             <thead>
-              <tr><th>#</th><th>Phase</th><th>Start</th><th>End</th><th class="num">Days</th></tr>
+              <tr><th>#</th><th>Phase</th><th>Depends on</th><th>Start</th><th>End</th><th class="num">Days</th></tr>
             </thead>
             <tbody id="repBody"></tbody>
             <tbody id="repFoot"></tbody>
@@ -555,17 +601,34 @@
 (function () {
   "use strict";
 
+  // link types: FS finish→start, SS start→start, FF finish→finish, SF start→finish
+  var TYPES = ["FS", "SS", "FF", "SF"];
+  var TYPE_HELP = {
+    FS: "Finish → Start: this phase starts after the linked phase finishes",
+    SS: "Start → Start: both phases start on the same day",
+    FF: "Finish → Finish: both phases finish on the same day",
+    SF: "Start → Finish: this phase finishes before the linked phase starts"
+  };
+  var TYPE_WORDS = {
+    FS: "starts after the finish of",
+    SS: "starts together with",
+    FF: "finishes together with",
+    SF: "finishes before the start of"
+  };
+
+  // `dep` here is an index into this list; makeDefaultPhases() turns it into a real id.
+  // null means "hangs off the project start".
   var DEFAULT_PHASES = [
-    { name: "Permits & approvals", days: 14, crew: 3 },
-    { name: "Site prep & demolition", days: 7, crew: 3 },
-    { name: "Foundation", days: 14, crew: 3 },
-    { name: "Framing", days: 21, crew: 3 },
-    { name: "Roofing & exterior", days: 14, crew: 3 },
-    { name: "Stairs (if needed)", days: 10, crew: 3 },
-    { name: "MEP rough-in (mech/elec/plumb)", days: 12, crew: 3 },
-    { name: "Insulation & drywall", days: 14, crew: 3 },
-    { name: "Finishes — floors, paint, doors, windows", days: 18, crew: 3 },
-    { name: "Cleanup & final inspection", days: 3, crew: 3 }
+    { name: "Permits & approvals", days: 14, crew: 3, dep: null, type: "FS", lag: 0 },
+    { name: "Site prep & demolition", days: 7, crew: 3, dep: 0, type: "FS", lag: 0 },
+    { name: "Foundation", days: 14, crew: 3, dep: 1, type: "FS", lag: 0 },
+    { name: "Framing", days: 21, crew: 3, dep: 2, type: "FS", lag: 0 },
+    { name: "Roofing & exterior", days: 14, crew: 3, dep: 3, type: "SS", lag: 14 },
+    { name: "Stairs (if needed)", days: 10, crew: 3, dep: 3, type: "FS", lag: 0 },
+    { name: "MEP rough-in (mech/elec/plumb)", days: 12, crew: 3, dep: 4, type: "SS", lag: 5 },
+    { name: "Insulation & drywall", days: 14, crew: 3, dep: 6, type: "FS", lag: 0 },
+    { name: "Finishes — floors, paint, doors, windows", days: 18, crew: 3, dep: 7, type: "FS", lag: 0 },
+    { name: "Cleanup & final inspection", days: 3, crew: 3, dep: 8, type: "FF", lag: 2 }
   ];
 
   // pastel bar palette — soft but readable with dark text
@@ -584,7 +647,21 @@
     "#a5f3fc"  // cyan
   ];
 
-  var phases = DEFAULT_PHASES.map(function (p) { return { name: p.name, days: p.days, crew: p.crew }; });
+  // every phase gets a stable id; links point at ids, never at list positions,
+  // so dragging phases around never breaks a dependency
+  var nextId = 1;
+  function makeDefaultPhases() {
+    nextId = 1;
+    var out = DEFAULT_PHASES.map(function (p) {
+      return { id: nextId++, name: p.name, days: p.days, crew: p.crew, dep: null, type: p.type, lag: p.lag };
+    });
+    DEFAULT_PHASES.forEach(function (p, i) {   // second pass: dep index → dep id
+      out[i].dep = (p.dep == null) ? null : out[p.dep].id;
+    });
+    return out;
+  }
+
+  var phases = makeDefaultPhases();
   var workWeek = 6;    // 5 = Mon–Fri, 6 = Mon–Sat, 7 = all days
   var holidays = [];   // array of "YYYY-MM-DD" strings, skipped in date calculations
   var $ = function (id) { return document.getElementById(id); };
@@ -622,6 +699,32 @@
     while (!isWorkingDay(x) && guard < 4000) { x = addDays(x, 1); guard++; }
     return x;
   }
+  function prevWorkingDay(d) {
+    var x = new Date(d.getTime()), guard = 0;
+    while (!isWorkingDay(x) && guard < 4000) { x = addDays(x, -1); guard++; }
+    return x;
+  }
+  // move n working days from d (n may be negative). n = 0 just snaps onto a working day.
+  function addWork(d, n) {
+    var x = n >= 0 ? nextWorkingDay(d) : prevWorkingDay(d);
+    var step = n >= 0 ? 1 : -1, left = Math.abs(n), guard = 0;
+    while (left > 0 && guard < 40000) {
+      x = addDays(x, step);
+      if (isWorkingDay(x)) left--;
+      guard++;
+    }
+    return x;
+  }
+  // working days from a to b, counting both ends
+  function countWork(a, b) {
+    if (b < a) return 0;
+    var x = new Date(a.getTime()), n = 0, guard = 0;
+    while (x <= b && guard < 40000) {
+      if (isWorkingDay(x)) n++;
+      x = addDays(x, 1); guard++;
+    }
+    return n;
+  }
 
   // ---- crew sizing ----
   // base days are entered for a crew of 3; more crew shortens the phase, fewer lengthens it.
@@ -634,39 +737,166 @@
     return Math.max(floor, adj);
   }
 
+  function phaseIndexById(id) {
+    for (var i = 0; i < phases.length; i++) if (phases[i].id === id) return i;
+    return -1;
+  }
+
+  // ---- dependency-aware scheduling engine ----
+  // Each phase is placed relative to the one phase it depends on. Everything is
+  // measured in WORKING days, so weekends and holidays never get consumed.
   function computeSchedule() {
     // project effectively begins on the first working day on/after the chosen start
     var start = nextWorkingDay(parseStart());
-    var cursor = new Date(start.getTime());
-    var rows = [];
-    phases.forEach(function (p, i) {
+
+    var byId = {};
+    phases.forEach(function (p, i) { byId[p.id] = { p: p, i: i }; });
+
+    var solved = {};     // id → finished row (memo, so a shared predecessor is solved once)
+    var visiting = {};   // ids mid-solve — guards against a circular chain
+
+    function solve(id) {
+      if (solved[id]) return solved[id];
+      var entry = byId[id];
+      if (!entry || visiting[id]) return null;   // missing or looping → treat as no predecessor
+      visiting[id] = true;
+
+      var p = entry.p;
       var base = Math.max(1, parseInt(p.days, 10) || 1);
       var crew = crewOf(p);                  // each phase adjusts independently by its own crew
       var days = adjustedDays(base, crew);   // crew-adjusted working days drive the dates
-      var s = nextWorkingDay(cursor);
-      var e = new Date(s.getTime());
-      // the start counts as working day 1; advance over working days only
-      for (var counted = 1; counted < days; counted++) {
-        e = nextWorkingDay(addDays(e, 1));
+      var lag  = parseInt(p.lag, 10) || 0;   // + waits (lag), − overlaps (lead)
+      var pred = (p.dep == null) ? null : solve(p.dep);
+      var type = pred ? (TYPES.indexOf(p.type) !== -1 ? p.type : "FS") : "FS";
+
+      var s, e, clamped = false;
+      if (!pred) {
+        s = addWork(start, lag);                      // hangs off the project start
+      } else if (type === "SS") {
+        s = addWork(pred.start, lag);                 // start together
+      } else if (type === "FF") {
+        e = addWork(pred.end, lag);                   // finish together
+        s = addWork(e, -(days - 1));
+      } else if (type === "SF") {
+        e = addWork(pred.start, lag - 1);             // finish before the predecessor starts
+        s = addWork(e, -(days - 1));
+      } else {
+        s = addWork(pred.end, 1 + lag);               // FS — the working day after
       }
-      rows.push({ name: p.name || ("Phase " + (i+1)), base: base, crew: crew, days: days, start: s, end: e, color: colorFor(i) });
-      cursor = addDays(e, 1);   // next phase searches from the day after this one ends
-    });
-    var totalDays = rows.reduce(function (a, r) { return a + r.days; }, 0);
-    var finish = rows.length ? rows[rows.length-1].end : start;
+
+      // a lead big enough to reach behind day one gets pinned to the project start
+      if (s < start) { s = new Date(start.getTime()); clamped = true; }
+      e = addWork(s, days - 1);                       // the start counts as working day 1
+
+      var row = {
+        id: p.id,
+        name: p.name || ("Phase " + (entry.i + 1)),
+        base: base, crew: crew, days: days,
+        start: s, end: e, color: colorFor(entry.i),
+        dep: pred ? p.dep : null, type: type, lag: lag, clamped: clamped
+      };
+      visiting[id] = false;
+      solved[id] = row;
+      return row;
+    }
+
+    // solved by id (links point anywhere), but kept in list order for display
+    var rows = [];
+    phases.forEach(function (p) { var r = solve(p.id); if (r) rows.push(r); });
+
+    var finish = start;
+    rows.forEach(function (r) { if (r.end > finish) finish = r.end; });
+
+    var workDays  = rows.reduce(function (a, r) { return a + r.days; }, 0);  // work in the plan
+    var totalDays = rows.length ? countWork(start, finish) : 0;             // calendar working days used
+    var saved     = Math.max(0, workDays - totalDays);                      // bought back by overlapping
+
     // average crew across phases — a single general reference for the PDF header
     var avgCrew = rows.length
       ? Math.round(rows.reduce(function (a, r) { return a + r.crew; }, 0) / rows.length)
       : 3;
-    return { start: start, finish: finish, totalDays: totalDays, rows: rows, avgCrew: avgCrew };
+    return { start: start, finish: finish, totalDays: totalDays, workDays: workDays,
+             saved: saved, rows: rows, avgCrew: avgCrew };
+  }
+
+  // ---- describing a link to the user ----
+  function predIndexOf(r, rows) {
+    if (r.dep == null) return -1;
+    for (var i = 0; i < rows.length; i++) if (rows[i].id === r.dep) return i;
+    return -1;
+  }
+  function lagText(lag) { return lag === 0 ? "" : (lag > 0 ? " +" : " −") + Math.abs(lag) + "d"; }
+  // compact label, e.g. "SS +14d · #4" or "Project start"
+  function linkText(r, rows) {
+    var pi = predIndexOf(r, rows);
+    if (pi < 0) return "Project start" + lagText(r.lag);
+    return r.type + lagText(r.lag) + " · #" + (pi + 1);
+  }
+  // full sentence, used in tooltips
+  function linkTitle(r, rows) {
+    var pi = predIndexOf(r, rows);
+    var t = (pi < 0)
+      ? "Starts at the project start"
+      : r.type + " link: this phase " + TYPE_WORDS[r.type] + " #" + (pi + 1) + " " + rows[pi].name;
+    if (r.lag > 0)      t += ", plus " + r.lag + " working day" + (r.lag === 1 ? "" : "s") + " of lag";
+    else if (r.lag < 0) t += ", minus " + (-r.lag) + " working day" + (r.lag === -1 ? "" : "s") + " of lead";
+    if (r.clamped)      t += " — held at the project start, because the link reached back before day one";
+    return t;
+  }
+  // only worth a tag when the link is something other than the plain default:
+  // FS, no lag, from the phase directly above
+  function linkTag(r, i, rows) {
+    var plainDep = i > 0 ? rows[i - 1].id : null;
+    if (!r.clamped && r.type === "FS" && r.lag === 0 && r.dep === plainDep) return null;
+    var text = linkText(r, rows);
+    if (r.clamped) text += " · held at project start";
+    return { text: text, title: linkTitle(r, rows) };
   }
 
   // ---- phase editor ----
-  var dragIndex = null;   // index of the phase row currently being dragged
+  var dragIndex = null;   // index of the phase block currently being dragged
+  var depSelects = [];    // every "depends on" <select>, so labels can refresh in place
+
+  function depLabel(i) { return "#" + (i + 1) + " " + (phases[i].name || "Phase " + (i + 1)); }
+
+  // Phases whose chain of links already runs through this id. Offering one of them
+  // as a predecessor would close a circle, so they are kept out of the dropdown.
+  function dependentsOf(id) {
+    var out = {};
+    phases.forEach(function (q) {
+      var seen = {}, cur = q.dep;
+      while (cur != null && !seen[cur]) {
+        if (cur === id) { out[q.id] = true; return; }
+        seen[cur] = true;
+        var up = phaseIndexById(cur);
+        cur = (up === -1) ? null : phases[up].dep;
+      }
+    });
+    return out;
+  }
+
+  // retitle the options in place — renaming a phase must not blur the box being typed in
+  function refreshDepLabels() {
+    depSelects.forEach(function (sel) {
+      for (var k = 0; k < sel.options.length; k++) {
+        var o = sel.options[k];
+        if (!o.value) continue;
+        var idx = phaseIndexById(parseInt(o.value, 10));
+        if (idx !== -1) o.textContent = depLabel(idx);
+      }
+      if (sel.syncTitle) sel.syncTitle();
+    });
+  }
+
   function renderPhaseInputs() {
     var list = $("phaseList");
     list.innerHTML = "";
+    depSelects = [];
     phases.forEach(function (p, i) {
+      // the phase row and its dependency row move together as one block
+      var block = document.createElement("div");
+      block.className = "phase-block";
+
       var row = document.createElement("div");
       row.className = "phase-row";
 
@@ -677,33 +907,33 @@
         "<circle cx='2.5' cy='3' r='1.3'/><circle cx='7.5' cy='3' r='1.3'/>" +
         "<circle cx='2.5' cy='8' r='1.3'/><circle cx='7.5' cy='8' r='1.3'/>" +
         "<circle cx='2.5' cy='13' r='1.3'/><circle cx='7.5' cy='13' r='1.3'/></svg>";
-      // only make the row draggable while the pointer is on the handle,
+      // only make the block draggable while the pointer is on the handle,
       // so text selection in the inputs stays intact
-      handle.addEventListener("mousedown", function () { row.draggable = true; });
-      handle.addEventListener("mouseup",   function () { row.draggable = false; });
+      handle.addEventListener("mousedown", function () { block.draggable = true; });
+      handle.addEventListener("mouseup",   function () { block.draggable = false; });
 
-      row.addEventListener("dragstart", function (e) {
+      block.addEventListener("dragstart", function (e) {
         dragIndex = i;
-        row.classList.add("dragging");
+        block.classList.add("dragging");
         e.dataTransfer.effectAllowed = "move";
         try { e.dataTransfer.setData("text/plain", String(i)); } catch (_) {}
       });
-      row.addEventListener("dragend", function () {
-        row.draggable = false;
-        row.classList.remove("dragging");
+      block.addEventListener("dragend", function () {
+        block.draggable = false;
+        block.classList.remove("dragging");
         dragIndex = null;
       });
-      row.addEventListener("dragover", function (e) {
+      block.addEventListener("dragover", function (e) {
         if (dragIndex === null) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
       });
-      row.addEventListener("drop", function (e) {
+      block.addEventListener("drop", function (e) {
         e.preventDefault();
         if (dragIndex === null || dragIndex === i) return;
         var moved = phases.splice(dragIndex, 1)[0];
         phases.splice(i, 0, moved);   // insert at the drop target's position
-        dragIndex = null;
+        dragIndex = null;             // links follow ids, so they survive the move
         renderPhaseInputs();
         renderAll();                  // refresh Gantt, dates, calcs + autosave
       });
@@ -713,7 +943,11 @@
 
       var name = document.createElement("input");
       name.type = "text"; name.value = p.name;
-      name.addEventListener("input", function () { phases[i].name = name.value; renderAll(); });
+      name.addEventListener("input", function () {
+        phases[i].name = name.value;
+        refreshDepLabels();   // keep the dropdowns current without stealing focus
+        renderAll();
+      });
 
       var crew = document.createElement("input");
       crew.type = "number"; crew.min = "1"; crew.value = p.crew;
@@ -726,10 +960,87 @@
 
       var del = document.createElement("button");
       del.className = "del"; del.innerHTML = "&times;"; del.title = "Remove phase";
-      del.addEventListener("click", function () { phases.splice(i,1); renderPhaseInputs(); renderAll(); });
+      del.addEventListener("click", function () {
+        var gone = phases[i];
+        phases.splice(i, 1);
+        // anything waiting on the removed phase inherits its link, so the chain stays whole
+        phases.forEach(function (q) {
+          if (q.dep === gone.id) { q.dep = gone.dep; q.type = gone.type; q.lag = gone.lag; }
+        });
+        renderPhaseInputs(); renderAll();
+      });
 
-      row.appendChild(handle); row.appendChild(sw); row.appendChild(name); row.appendChild(crew); row.appendChild(days); row.appendChild(del);
-      list.appendChild(row);
+      row.appendChild(handle); row.appendChild(sw); row.appendChild(name);
+      row.appendChild(crew); row.appendChild(days); row.appendChild(del);
+
+      // ---- dependency row:  ↳ [depends on] [type] [lag] ----
+      var dep = document.createElement("div");
+      dep.className = "dep-row";
+
+      var arrow = document.createElement("div");
+      arrow.className = "arrow"; arrow.textContent = "↳";
+      arrow.title = "What this phase waits on";
+
+      var depSel = document.createElement("select");
+      var blocked = dependentsOf(p.id);
+      var first = document.createElement("option");
+      first.value = ""; first.textContent = "Project start";
+      depSel.appendChild(first);
+      phases.forEach(function (q, j) {
+        if (q.id === p.id || blocked[q.id]) return;   // no self-links, no circles
+        var o = document.createElement("option");
+        o.value = String(q.id); o.textContent = depLabel(j);
+        depSel.appendChild(o);
+      });
+      depSel.value = (p.dep == null) ? "" : String(p.dep);
+      if (depSel.selectedIndex === -1) { depSel.value = ""; phases[i].dep = null; }   // stale link
+      // the column is narrow, so a long phase name clips — keep it whole in the tooltip
+      depSel.syncTitle = function () {
+        var sel = (depSel.value === "") ? -1 : phaseIndexById(parseInt(depSel.value, 10));
+        depSel.title = (sel === -1)
+          ? "Linked to the project start"
+          : "Linked to " + depLabel(sel);
+      };
+      depSel.syncTitle();
+      depSelects.push(depSel);
+
+      var typeSel = document.createElement("select");
+      TYPES.forEach(function (t) {
+        var o = document.createElement("option");
+        o.value = t; o.textContent = t; o.title = TYPE_HELP[t];
+        typeSel.appendChild(o);
+      });
+      typeSel.value = (TYPES.indexOf(p.type) !== -1) ? p.type : "FS";
+      typeSel.title = TYPE_HELP[typeSel.value];
+      typeSel.disabled = (phases[i].dep == null);   // no predecessor, no ends to tie
+
+      var lag = document.createElement("input");
+      lag.type = "number"; lag.step = "1";
+      lag.value = (p.lag == null ? 0 : p.lag);
+      lag.title = "Lag / lead in working days — positive waits, negative overlaps";
+
+      depSel.addEventListener("change", function () {
+        phases[i].dep = (depSel.value === "") ? null : parseInt(depSel.value, 10);
+        renderPhaseInputs();   // the legal choices for every other phase just changed
+        renderAll();
+      });
+      typeSel.addEventListener("change", function () {
+        phases[i].type = typeSel.value;
+        typeSel.title = TYPE_HELP[typeSel.value];
+        renderAll();
+      });
+      lag.addEventListener("input", function () {
+        phases[i].lag = parseInt(lag.value, 10) || 0;
+        renderAll();
+      });
+
+      dep.appendChild(arrow);
+      dep.appendChild(document.createElement("div"));   // lines up with the swatch column
+      dep.appendChild(depSel); dep.appendChild(typeSel); dep.appendChild(lag);
+      dep.appendChild(document.createElement("div"));   // lines up with the delete column
+
+      block.appendChild(row); block.appendChild(dep);
+      list.appendChild(block);
     });
   }
 
@@ -776,7 +1087,7 @@
       axisEl.appendChild(tick);
     }
 
-    sch.rows.forEach(function (r) {
+    sch.rows.forEach(function (r, ri) {
       var offset = Math.round((r.start - sch.start) / 86400000);
       var calDays = Math.round((r.end - r.start) / 86400000) + 1;   // calendar span of the bar
       var leftPct = (offset / denom) * 100;
@@ -798,13 +1109,25 @@
         note.textContent = "base " + r.base + "d → " + r.days + "d with " + r.crew + " crew";
         name.appendChild(note);
       }
+      // call out any link that is not the plain "straight after the phase above"
+      var tagInfo = linkTag(r, ri, sch.rows);
+      if (tagInfo) {
+        var tagWrap = document.createElement("div");
+        var tag = document.createElement("span");
+        tag.className = "link-tag" + (r.clamped ? " clamped" : "");
+        tag.textContent = tagInfo.text;
+        tag.title = tagInfo.title;
+        tagWrap.appendChild(tag);
+        name.appendChild(tagWrap);
+      }
       var track = document.createElement("div"); track.className = "track";
 
       var bar = document.createElement("div"); bar.className = "bar";
       bar.style.left = leftPct + "%";
       bar.style.width = "calc(" + widthPct + "% - 2px)";
       bar.style.background = r.color;
-      bar.title = r.name + " · " + fmtShort(r.start) + " → " + fmtShort(r.end) + " (" + r.days + " days)";
+      bar.title = r.name + " · " + fmtShort(r.start) + " → " + fmtShort(r.end) +
+        " (" + r.days + " days) · " + linkTitle(r, sch.rows);
 
       // duration sits just past the bar's right edge so it never gets clipped
       var dur = document.createElement("span"); dur.className = "dur";
@@ -835,6 +1158,7 @@
       tr.innerHTML =
         "<td>" + (i+1) + "</td>" +
         "<td><span class='ph'><span class='swatch' style='background:" + r.color + "'></span>" + escapeHtml(r.name) + "</span></td>" +
+        "<td>" + escapeHtml(linkText(r, sch.rows)) + "</td>" +
         "<td>" + fmtMed(r.start) + "</td>" +
         "<td>" + fmtMed(r.end) + "</td>" +
         "<td class='num'>" + r.days + "</td>";
@@ -843,7 +1167,7 @@
     var foot = $("repFoot"); foot.innerHTML = "";
     var weeks = Math.round(sch.totalDays / 7 * 10) / 10;
     var tr = document.createElement("tr"); tr.className = "total";
-    tr.innerHTML = "<td></td><td>Total — " + sch.rows.length + " phases</td><td>" +
+    tr.innerHTML = "<td></td><td>Total — " + sch.rows.length + " phases</td><td></td><td>" +
       fmtMed(sch.start) + "</td><td>" + fmtMed(sch.finish) + "</td><td class='num'>" +
       sch.totalDays + " <span style='color:var(--muted);font-weight:500'>(" + weeks + "w)</span></td>";
     foot.appendChild(tr);
@@ -871,24 +1195,29 @@
     $("ovInfoStart").textContent = fmtMed(start);
     $("ovInfoFinish").textContent = fmtMed(finish);
 
-    // current phase = the one active today
-    var current = "";
-    for (var i = 0; i < sch.rows.length; i++) {
-      var r = sch.rows[i];
-      if (today >= r.start && today <= r.end) { current = r.name; break; }
+    // phases can overlap now, so several may be live at once
+    var active = sch.rows.filter(function (r) { return today >= r.start && today <= r.end; });
+    var phaseEl = $("ovInfoPhase");
+    if (active.length) {
+      phaseEl.textContent = active.length === 1
+        ? active[0].name
+        : active[0].name + " +" + (active.length - 1) + " more";
+      phaseEl.title = active.map(function (r) { return r.name; }).join(", ");
+    } else {
+      phaseEl.textContent = today < start ? "Not started"
+        : (today > finish ? "Completed" : "Between phases");
+      phaseEl.title = "";
     }
-    if (!current) current = today < start ? "Not started" : (today > finish ? "Completed" : "—");
-    $("ovInfoPhase").textContent = current;
 
     // days remaining until finish
     var remain = today >= finish ? 0 : Math.ceil((finish - today) / 86400000);
     $("ovInfoRemain").textContent = remain + (remain === 1 ? " day" : " days");
 
-    // next milestone = first phase that starts after today
+    // next milestone = the soonest start after today (rows are no longer in date order)
     var next = null;
-    for (var j = 0; j < sch.rows.length; j++) {
-      if (sch.rows[j].start > today) { next = sch.rows[j]; break; }
-    }
+    sch.rows.forEach(function (r) {
+      if (r.start > today && (!next || r.start < next.start)) next = r;
+    });
     if (next) {
       $("ovMileName").textContent = next.name;
       $("ovMileDate").textContent = "Expected start · " + fmtMed(next.start);
@@ -913,7 +1242,8 @@
     $("ovStart").textContent = fmtShort(sch.start);
     $("ovStartSub").textContent = sch.start.getFullYear();
     $("ovDur").textContent = sch.totalDays + " days";
-    $("ovDurSub").textContent = "≈ " + weeks + " weeks";
+    $("ovDurSub").textContent = "≈ " + weeks + " weeks" +
+      (sch.saved > 0 ? " · " + sch.saved + "d saved by overlap" : "");
     $("ovPhases").textContent = sch.rows.length;
     $("ovFinish").textContent = fmtShort(sch.finish);
     $("ovFinishSub").textContent = sch.finish.getFullYear();
@@ -922,6 +1252,9 @@
     $("ovBadge").textContent = fmtLong(sch.finish);
     $("schBadge").textContent = fmtLong(sch.finish);
     $("repBadge").textContent = fmtLong(sch.finish);
+
+    $("repSub").textContent = "Phase-by-phase breakdown" +
+      (sch.saved > 0 ? " · " + sch.saved + " days saved by overlapping work" : "");
 
     renderGantt(sch, $("ovAxis"), $("ovBars"));
     renderGantt(sch, $("schAxis"), $("schBars"));
@@ -1008,7 +1341,8 @@
     // ----- Gantt timeline -----
     var gsec = document.createElement("div");
     gsec.style.cssText = "padding:24px 40px 6px;";
-    gsec.innerHTML = sectionLabel("Project Timeline");
+    gsec.innerHTML = sectionLabel("Project Timeline" +
+      (sch.saved > 0 ? " · " + sch.saved + " days saved by overlapping work" : ""));
     var ginner = document.createElement("div");
     var axis = document.createElement("div"); axis.className = "axis";
     var bars = document.createElement("div");
@@ -1029,14 +1363,15 @@
       bodyRows += "<tr><td>" + (i + 1) + "</td>" +
         "<td><span class='ph'><span class='swatch' style='background:" + r.color + "'></span>" + escapeHtml(r.name) + "</span>" + crewNote + "</td>" +
         "<td class='num'>" + r.crew + "</td>" +
+        "<td>" + escapeHtml(linkText(r, sch.rows)) + "</td>" +
         "<td>" + fmtMed(r.start) + "</td><td>" + fmtMed(r.end) + "</td>" +
         "<td class='num'>" + r.days + "</td></tr>";
     });
     table.innerHTML =
-      "<thead><tr><th>#</th><th>Phase</th><th class='num'>Crew</th><th>Start</th><th>End</th><th class='num'>Days</th></tr></thead>" +
+      "<thead><tr><th>#</th><th>Phase</th><th class='num'>Crew</th><th>Depends on</th><th>Start</th><th>End</th><th class='num'>Days</th></tr></thead>" +
       "<tbody>" + bodyRows + "</tbody>" +
       "<tbody><tr class='total'><td></td><td>Total — " + sch.rows.length + " phases</td>" +
-        "<td class='num'>" + sch.avgCrew + "</td>" +
+        "<td class='num'>" + sch.avgCrew + "</td><td></td>" +
         "<td>" + fmtMed(sch.start) + "</td><td>" + fmtMed(sch.finish) + "</td>" +
         "<td class='num'>" + sch.totalDays + " <span style='color:#94a3b8;font-weight:500'>(" + weeks + "w)</span></td></tr></tbody>";
     tsec.appendChild(table);
@@ -1144,7 +1479,10 @@
       projType:    $("projType").value,
       workWeek:    workWeek,
       holidays:    holidays.slice(),
-      phases:      phases.map(function (p) { return { name: p.name, days: p.days, crew: p.crew }; })
+      phases:      phases.map(function (p) {
+        return { id: p.id, name: p.name, days: p.days, crew: p.crew,
+                 dep: p.dep, type: p.type, lag: p.lag };
+      })
     };
   }
 
@@ -1174,11 +1512,42 @@
       holidays = s.holidays.filter(function (h) { return typeof h === "string" && /^\d{4}-\d{2}-\d{2}$/.test(h); });
     }
     if (Array.isArray(s.phases) && s.phases.length) {
-      phases = s.phases.map(function (p) {
+      var raw = s.phases;
+      // a save made before dependencies existed has no id/dep fields at all
+      var linked = raw.some(function (q) {
+        return q && (q.hasOwnProperty("dep") || q.hasOwnProperty("id"));
+      });
+
+      // settle on one unique id per phase, keeping saved ids wherever they are usable
+      var taken = {};
+      var ids = raw.map(function (q) {
+        var v = (q && q.id != null) ? parseInt(q.id, 10) : NaN;
+        if (!isFinite(v) || v <= 0 || taken[v]) return null;
+        taken[v] = true; return v;
+      });
+      var maxId = 0;
+      ids.forEach(function (v) { if (v && v > maxId) maxId = v; });
+      var counter = maxId + 1;
+      ids = ids.map(function (v) { if (v) return v; taken[counter] = true; return counter++; });
+      nextId = Math.max(counter, maxId + 1);   // keep new phases clear of every loaded id
+
+      phases = raw.map(function (q, i) {
+        var dep;
+        if (!linked) {
+          dep = i > 0 ? ids[i - 1] : null;     // old save: plain FS chain, so dates look unchanged
+        } else {
+          var d = (q && q.dep != null) ? parseInt(q.dep, 10) : NaN;
+          dep = (isFinite(d) && taken[d] && d !== ids[i]) ? d : null;   // drop links to ids that are gone
+        }
+        var lag = (q && q.lag != null) ? parseInt(q.lag, 10) : 0;
         return {
-          name: (p && typeof p.name === "string") ? p.name : "",
-          days: (p && p.days != null) ? p.days : 1,
-          crew: (p && p.crew != null && p.crew !== "") ? p.crew : 3   // default for saves made before per-phase crew
+          id:   ids[i],
+          name: (q && typeof q.name === "string") ? q.name : "",
+          days: (q && q.days != null) ? q.days : 1,
+          crew: (q && q.crew != null && q.crew !== "") ? q.crew : 3,   // default for saves made before per-phase crew
+          dep:  dep,
+          type: (q && TYPES.indexOf(q.type) !== -1) ? q.type : "FS",
+          lag:  isFinite(lag) ? lag : 0
         };
       });
     }
@@ -1187,7 +1556,7 @@
   function resetDefaults() {
     if (!window.confirm("Reset to defaults? This clears your saved schedule and starts fresh.")) return;
     try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
-    phases = DEFAULT_PHASES.map(function (p) { return { name: p.name, days: p.days, crew: p.crew }; });
+    phases = makeDefaultPhases();
     workWeek = 6;
     holidays = [];
     $("projName").value    = DEFAULTS.projName;
@@ -1224,7 +1593,13 @@
       if (holidays.indexOf(v) === -1) { holidays.push(v); holidays.sort(); renderHolidays(); renderAll(); }
       $("holidayInput").value = "";
     });
-    $("addPhase").addEventListener("click", function () { phases.push({ name:"New phase", days:7, crew:3 }); renderPhaseInputs(); renderAll(); });
+    $("addPhase").addEventListener("click", function () {
+      phases.push({
+        id: nextId++, name: "New phase", days: 7, crew: 3,
+        dep: phases.length ? phases[phases.length - 1].id : null, type: "FS", lag: 0
+      });
+      renderPhaseInputs(); renderAll();
+    });
     $("resetDefaults").addEventListener("click", resetDefaults);
     $("downloadPdf").addEventListener("click", downloadPdf);
 
